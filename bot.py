@@ -29,6 +29,7 @@ load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN", "").strip()
 COMPANY = os.getenv("COMPANY_NAME", "EstateFlow AI").strip() or "EstateFlow AI"
+BUILD_VERSION = "2026-10-07-FIXED-UI-01"
 ADMIN_IDS = {
     int(x.strip())
     for x in os.getenv("ADMIN_IDS", "").split(",")
@@ -542,6 +543,13 @@ async def collect(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     value = (update.message.text or "").strip()
 
+    # Never treat a Python/JSON option matrix as a legitimate user selection.
+    # This also protects against accidental legacy handlers sending raw arrays.
+    if value.startswith("[[") and value.endswith("]]"):
+        log.error("Legacy raw keyboard payload received from Telegram: %r", value)
+        await update.message.reply_text(t(context, "choose_button"))
+        return
+
     if value and is_cancel(value, context):
         context.user_data.clear()
 
@@ -878,6 +886,12 @@ async def save_lead(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
 
+async def version_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        f"EstateFlow AI\\nBuild: {BUILD_VERSION}"
+    )
+
+
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"Your Telegram ID: {update.effective_user.id}"
@@ -1046,6 +1060,10 @@ def main():
     )
 
     app.add_handler(
+        CommandHandler("version", version_cmd)
+    )
+
+    app.add_handler(
         CommandHandler("myid", myid)
     )
 
@@ -1083,7 +1101,7 @@ def main():
 
     app.add_error_handler(error_handler)
 
-    log.info("EstateFlow AI is running...")
+    log.info("EstateFlow AI is running | BUILD %s", BUILD_VERSION)
 
     app.run_polling(
         allowed_updates=Update.ALL_TYPES
